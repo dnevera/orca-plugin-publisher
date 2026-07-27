@@ -722,6 +722,16 @@ class ConnectorAPI:
             "changed": local_ver != cloud_ver,
         })
 
+        # Plugin types (script, slicing_pipeline, etc.)
+        cloud_types = sorted(cloud.get("types") or [])
+        local_types = sorted(manifest.plugin_types or [])
+        diffs.append({
+            "field": "Types",
+            "local": ", ".join(local_types) if local_types else "—",
+            "cloud": ", ".join(cloud_types) if cloud_types else "—",
+            "changed": local_types != cloud_types,
+        })
+
         # README / description
         local_readme = ""
         readme_path = rp / manifest.readme
