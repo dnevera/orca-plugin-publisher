@@ -31,8 +31,8 @@ Manifest Schema (plugin_manifest.json)
       "requires_python": ">=3.12",             # Python version constraint
       "platforms": ["py3-none-any"],            # Wheel platform tags
       "type": ["script"],                      # Plugin types for Orca Cloud
-                                               #   Valid: "script", "slicing_pipeline",
-                                               #          "printer_agent"
+                                               #   Valid: "script", "slicing-pipeline",
+                                               #          "printer-agent"
       "tags": ["exhaust", "safety", "H2C"],    # Searchable tags
       "compatible_orcaslicer_version": "2.4.2", # Min OrcaSlicer version
 
@@ -216,8 +216,8 @@ class PluginManifest:
     """Plugin capability types for Orca Cloud categorization.
     Valid values (from Orca Cloud JS bundle):
       - "script"            — Script capability
-      - "slicing_pipeline"  — SlicingPipeline capability
-      - "printer_agent"     — PrinterAgent capability
+      - "slicing-pipeline"  — SlicingPipeline capability
+      - "printer-agent"     — PrinterAgent capability
     TODO: Validate against known types in validate()."""
 
     tags: list[str] = field(default_factory=list)

@@ -723,7 +723,7 @@ class ConnectorAPI:
             "changed": local_ver != cloud_ver,
         })
 
-        # Plugin types (script, slicing_pipeline, etc.)
+        # Plugin types (script, slicing-pipeline, etc.)
         cloud_types = sorted(cloud.get("types") or [])
         local_types = sorted(manifest.plugin_types or [])
         diffs.append({

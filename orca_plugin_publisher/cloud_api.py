@@ -159,7 +159,7 @@ class CloudPlugin:
     """Author name/handle (optional)."""
 
     types: list[str] | None = None
-    """Plugin capability types (e.g., ["script", "slicing_pipeline"])."""
+    """Plugin capability types (e.g., ["script", "slicing-pipeline"])."""
 
     tags: list[str] | None = None
     """Searchable tags."""
