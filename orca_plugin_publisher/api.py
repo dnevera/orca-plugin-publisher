@@ -327,6 +327,86 @@ def _parse_changelog_for_version(repo_path: Path, version: str) -> str | None:
     return text if text else None
 
 
+# ===================== Cloud auto-link =====================
+
+def _auto_link_to_cloud(repos: list[dict[str, Any]]) -> None:
+    """Auto-link unlinked repos to existing cloud plugins by matching names.
+
+    For each repo with uuid=null, queries the user's cloud plugins and tries
+    to find one with the same name. If found, writes uuid and sharing_token
+    back to the repo's plugin_manifest.json.
+
+    This runs on get_repos() so the UI correctly shows "Update" instead of
+    "Publish" for already-published plugins.
+    """
+    unlinked = [r for r in repos if r.get("has_manifest") and not r.get("is_published")]
+    if not unlinked:
+        return
+
+    # Only fetch cloud if we have unlinked repos and are authenticated
+    status = auth_status()
+    if not status.get("authenticated"):
+        return
+
+    try:
+        token = get_access_token()
+        api = OrcaCloudAPI(token)
+        cloud_plugins = api.get_my_plugins()
+    except Exception as exc:
+        log.warning("Auto-link: failed to fetch cloud plugins: %s", exc)
+        return
+
+    # Build name → cloud plugin lookup with normalized slug matching
+    # Local names may be slugs ('orca-slice-heating-inspector')
+    # Cloud names may be display names ('Slice Heating Inspector')
+
+    def _normalize(name: str) -> str:
+        """Normalize a name to a comparable slug: lowercase, strip orca- prefix, remove separators."""
+        s = name.strip().lower()
+        # Remove common separators
+        s = s.replace("-", " ").replace("_", " ")
+        # Remove 'orca' prefix (common in local slug names)
+        for prefix in ("orca ", "orca-", "orca_"):
+            if s.startswith(prefix):
+                s = s[len(prefix):]
+                break
+        return " ".join(s.split())  # collapse whitespace
+
+    cloud_by_slug: dict[str, dict] = {}
+    for cp in cloud_plugins:
+        cp_name = cp.get("name", "")
+        if cp_name:
+            cloud_by_slug[_normalize(cp_name)] = cp
+
+    for repo_info in unlinked:
+        repo_name = repo_info.get("name", "")
+        if not repo_name:
+            continue
+
+        normalized = _normalize(repo_name)
+        cloud_match = cloud_by_slug.get(normalized)
+        if not cloud_match:
+            continue
+
+        # Found match — update local manifest
+        repo_path = Path(repo_info["path"])
+        try:
+            manifest = load_manifest(repo_path)
+            manifest.cloud.uuid = cloud_match["id"]
+            manifest.cloud.sharing_token = cloud_match.get("sharing_token")
+            save_manifest(repo_path, manifest)
+
+            # Update the repo_info dict in-place so the UI reflects the change
+            repo_info["is_published"] = True
+            repo_info["cloud_uuid"] = cloud_match["id"]
+            repo_info["cloud_url"] = f"{ORCA_CLOUD_URL}/p/{cloud_match.get('sharing_token', '')}"
+
+            log.info("Auto-linked '%s' → cloud UUID %s", repo_info.get("name"), cloud_match["id"])
+        except Exception as exc:
+            log.warning("Auto-link: failed to update manifest for %s: %s",
+                        repo_info.get("name"), exc)
+
+
 # ===================== JS API =====================
 
 class ConnectorAPI:
@@ -367,9 +447,14 @@ class ConnectorAPI:
     # ---- Local repos ----
 
     def get_repos(self) -> dict:
-        """List linked repos with detected metadata."""
+        """List linked repos with detected metadata.
+
+        Auto-links unlinked repos to existing cloud plugins by name match.
+        """
         config = load_config()
-        return {"repos": [_detect_repo_metadata(Path(r["path"])) for r in config.get("repos", [])]}
+        repos = [_detect_repo_metadata(Path(r["path"])) for r in config.get("repos", [])]
+        _auto_link_to_cloud(repos)
+        return {"repos": repos}
 
     def link_repo(self, path: str) -> dict:
         """Link a local directory as a plugin repo."""
