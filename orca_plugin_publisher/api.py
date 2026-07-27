@@ -208,6 +208,77 @@ def _read_readme_description(repo_path: Path, manifest) -> str | None:
         return None
 
 
+# Regex: ![alt text](path) — capture the full match, alt, and path
+_MD_IMAGE_RE = re.compile(r"(!\[([^\]]*)\]\(([^)]+)\))")
+
+
+def _upload_readme_images(
+    description: str, repo_path: Path, api: "OrcaCloudAPI"
+) -> tuple[str, list[str]]:
+    """Upload local images referenced in markdown and replace paths with cloud URLs.
+
+    Finds all ![alt](local/path.png) patterns where the path is a local file
+    (not http/https). Uploads each to Orca Cloud media and replaces the path
+    with the permanent content URL.
+
+    The returned attachment_ids MUST be included in the plugin's metadata
+    (attachment_ids field) to bind them to the plugin — otherwise the unsigned
+    content URLs will return 404.
+
+    Args:
+        description: Markdown text (README content).
+        repo_path: Root of the plugin repo (for resolving relative paths).
+        api: Authenticated OrcaCloudAPI instance.
+
+    Returns:
+        Tuple of (modified markdown, list of uploaded attachment_ids).
+    """
+    matches = _MD_IMAGE_RE.findall(description)
+    if not matches:
+        return description, []
+
+    result = description
+    uploaded: dict[str, str] = {}  # local_path → cloud_url (dedupe)
+    attachment_ids: list[str] = []
+
+    for full_match, alt_text, img_path in matches:
+        # Skip external URLs
+        if img_path.startswith(("http://", "https://", "//")):
+            continue
+
+        # Dedupe — same local path may appear multiple times
+        if img_path in uploaded:
+            cloud_url = uploaded[img_path]
+            replacement = f"![{alt_text}]({cloud_url})"
+            result = result.replace(full_match, replacement, 1)
+            continue
+
+        # Resolve relative to repo root
+        local_file = repo_path / img_path
+        if not local_file.exists():
+            log.warning("README image not found, skipping: %s", local_file)
+            continue
+
+        if local_file.suffix.lower() not in _IMAGE_EXTENSIONS:
+            log.warning("README image unsupported format, skipping: %s", local_file)
+            continue
+
+        try:
+            attachment_id = api.upload_media_attachment(local_file)
+            cloud_url = f"{api._base}/api/v1/bundles/media/{attachment_id}/content"
+            uploaded[img_path] = cloud_url
+            attachment_ids.append(attachment_id)
+
+            replacement = f"![{alt_text}]({cloud_url})"
+            result = result.replace(full_match, replacement, 1)
+            log.info("README image uploaded: %s → %s", img_path, attachment_id)
+        except Exception as exc:
+            log.warning("README image upload failed, keeping original: %s — %s",
+                        img_path, exc)
+
+    return result, attachment_ids
+
+
 def _parse_changelog_for_version(repo_path: Path, version: str) -> str | None:
     """Parse CHANGELOG.md and extract the section for a specific version.
 
@@ -386,7 +457,14 @@ class ConnectorAPI:
         # Enrich description from README.md (full markdown)
         readme_description = _read_readme_description(rp, manifest)
         if readme_description:
+            # Upload local images and replace paths with cloud URLs
+            readme_description, img_attachment_ids = _upload_readme_images(
+                readme_description, rp, api
+            )
             metadata["description"] = readme_description
+            if img_attachment_ids:
+                metadata.setdefault("attachment_ids", []).extend(img_attachment_ids)
+                log.info("Bound %d README images to plugin", len(img_attachment_ids))
             log.info("Using README.md as description (%d chars)", len(readme_description))
 
         # Enrich changelog from CHANGELOG.md (section for current version)
