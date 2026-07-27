@@ -412,7 +412,18 @@ def _parse_changelog_for_version(repo_path: Path, version: str) -> str | None:
     if not section_lines:
         return None
 
-    text = "\n".join(section_lines).strip()
+    # Post-process: strip ### sub-headers (Added/Changed/Fixed) —
+    # Cloud UI renders plaintext, not markdown.
+    cleaned = []
+    for line in section_lines:
+        if line.startswith("### "):
+            continue  # drop Keep-a-Changelog section headers
+        cleaned.append(line)
+
+    text = "\n".join(cleaned).strip()
+    # Collapse multiple blank lines into single
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
     return text if text else None
 
 
