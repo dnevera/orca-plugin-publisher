@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orca Cloud Connector</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="icon-64.png">
+  <link rel="apple-touch-icon" sizes="256x256" href="icon-256.png">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -61,6 +64,12 @@
     .b-whl{background:rgba(188,140,255,.12);color:var(--pur);border:1px solid rgba(188,140,255,.2)}
     .b-man{background:rgba(88,166,255,.12);color:var(--ac);border:1px solid rgba(88,166,255,.2)}
     .b-err{background:rgba(248,81,73,.12);color:var(--err);border:1px solid rgba(248,81,73,.2)}
+    .b-sync{background:rgba(63,185,80,.12);color:var(--ok);border:1px solid rgba(63,185,80,.2)}
+    .b-ahead{background:rgba(210,153,34,.12);color:var(--warn);border:1px solid rgba(210,153,34,.2)}
+    .b-meta{background:rgba(136,136,255,.12);color:#88f;border:1px solid rgba(136,136,255,.2)}
+    .sync-info{font-size:10px;color:var(--t3);padding:4px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .sync-info .ver{color:var(--t2);font-family:'SF Mono',Consolas,monospace;font-size:9px;background:var(--bg-3);padding:0 4px;border-radius:3px}
+    .sync-info .changes{color:var(--warn);font-size:9px}
     .card-acts{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
 
     .log{background:var(--bg-1);border:1px solid var(--brd);border-radius:var(--rs);padding:6px 10px;margin-top:6px;font-size:10px;font-family:'SF Mono',Consolas,monospace;color:var(--t2);max-height:140px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
@@ -92,12 +101,39 @@
     .spinner{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:sp .5s linear infinite}
     @keyframes sp{to{transform:rotate(360deg)}}
     ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:2px}
+
+    .diff-tbl{width:100%;border-collapse:collapse;font-size:11px;margin:10px 0}
+    .diff-tbl th{text-align:left;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:4px 8px;border-bottom:1px solid var(--brd)}
+    .diff-tbl td{padding:5px 8px;border-bottom:1px solid var(--bg-3)}
+    .diff-tbl .f-name{color:var(--t2);font-weight:500;width:30%}
+    .diff-tbl .f-val{font-family:'SF Mono',Consolas,monospace;font-size:10px;word-break:break-all}
+    .diff-tbl tr.changed{background:rgba(210,153,34,.06)}
+    .diff-tbl tr.changed .f-name{color:var(--warn)}
+    .diff-tbl tr.same .f-val{color:var(--t3)}
+    .diff-tbl .f-arrow{color:var(--warn);padding:0 4px}
+    .diff-status{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--rs);font-size:11px;font-weight:500;margin-bottom:10px}
+    .diff-status.up_to_date{background:rgba(63,185,80,.1);color:var(--ok)}
+    .diff-status.version_ahead{background:rgba(210,153,34,.1);color:var(--warn)}
+    .diff-status.metadata_changed{background:rgba(136,136,255,.1);color:#88f}
+    .diff-status.new{background:rgba(88,166,255,.1);color:var(--ac)}
+    .diff-tbl tr.clickable{cursor:pointer}
+    .diff-tbl tr.clickable:hover{background:rgba(210,153,34,.12)}
+    .diff-tbl tr.clickable .f-name::after{content:' ▸';font-size:8px;opacity:.5}
+    .udiff{background:var(--bg-3);border:1px solid var(--brd);border-radius:var(--rs);padding:0;margin-top:10px;max-height:360px;overflow-y:auto;font-size:10px;font-family:'SF Mono',Consolas,monospace;line-height:1.6}
+    .udiff-line{padding:1px 8px;white-space:pre-wrap;word-break:break-word;border-left:3px solid transparent}
+    .udiff-add{background:rgba(63,185,80,.08);color:var(--ok);border-left-color:var(--ok)}
+    .udiff-del{background:rgba(248,81,73,.08);color:var(--err);border-left-color:var(--err)}
+    .udiff-ctx{color:var(--t3)}
+    .udiff-hdr{color:var(--ac);background:rgba(88,166,255,.06);padding:3px 8px;font-weight:600;border-bottom:1px solid var(--brd)}
+    .udiff-stats{display:flex;gap:10px;font-size:10px;margin:6px 0}
+    .udiff-stats .add{color:var(--ok)}
+    .udiff-stats .del{color:var(--err)}
   </style>
 </head>
 <body>
 <div class="app">
   <div class="hdr">
-    <span style="font-size:20px">🐙</span>
+    <img src="icon-64.png" alt="Orca" style="width:28px;height:28px;border-radius:6px">
     <span class="hdr-t">Orca Cloud Connector</span>
   </div>
   <div class="acard" id="auth-orca"></div>
@@ -108,6 +144,7 @@
   <div class="tab-panel active" id="panel-plugins">
     <div class="toolbar">
       <div class="toolbar-fill"></div>
+      <button class="btn bo bs" onclick="reloadAll()" title="Refresh plugin data">🔄 Reload</button>
       <button class="btn bp bs" onclick="linkLocalRepo()">📂 Link Repo</button>
     </div>
     <div id="pluginList"></div>
@@ -205,24 +242,55 @@ function renderPlugins() {
   c.innerHTML = plugins.map(renderPluginCard).join('');
 }
 
+function renderSyncBadge(p) {
+  const s = p.cloud_sync_status;
+  if (!s) return '';
+  const map = {
+    up_to_date: { cls: 'b-sync', icon: '✓', label: 'Up to date' },
+    version_ahead: { cls: 'b-ahead', icon: '↑', label: 'Update ready' },
+    metadata_changed: { cls: 'b-meta', icon: '~', label: 'Metadata changed' },
+    new: { cls: 'b-new', icon: '★', label: 'New' },
+  };
+  const m = map[s] || { cls: 'b-new', icon: '?', label: s };
+  return `<span class="badge ${m.cls}">${m.icon} ${m.label}</span>`;
+}
+
+function renderSyncInfo(p) {
+  if (!p.is_published || !p.cloud_version) return '';
+  const parts = [`<span class="ver">☁️ v${esc(p.cloud_version)}</span>`];
+  if (p.cloud_version !== p.version) {
+    parts.push(`<span class="ver" style="color:var(--ok)">→ v${esc(p.version)}</span>`);
+  }
+  if (p.cloud_changes && p.cloud_changes.length) {
+    parts.push(`<span class="changes">${p.cloud_changes.map(esc).join(', ')}</span>`);
+  }
+  return `<div class="sync-info">${parts.join('')}</div>`;
+}
+
 function renderPluginCard(p) {
   const bb = [
     p.is_published ? '<span class="badge b-pub">☁️ Published</span>' : '<span class="badge b-new">🆕 New</span>',
+    renderSyncBadge(p),
     p.has_wheel ? '<span class="badge b-whl">📦 .whl</span>' : null,
     p.has_manifest ? '<span class="badge b-man">📋 Manifest</span>' : '<span class="badge b-err">⚠ No manifest</span>',
   ].filter(Boolean).join('');
   const canBuild = p.has_build_script && p.exists;
   const canPub = canBuild && authState.authenticated && p.has_manifest;
+  const needsUpdate = p.cloud_sync_status === 'version_ahead' || p.cloud_sync_status === 'metadata_changed';
+  const pubBtnClass = p.is_published ? (needsUpdate ? 'bg' : 'bo') : 'bp';
+  const pubBtnLabel = p.is_published ? (needsUpdate ? '🔄 Update' : '☁️ Up to date') : '🚀 Publish';
   return `<div class="card">
     <div class="card-top"><div><span class="card-name">${esc(p.name || '?')}</span>${p.version ? ` <span style="font-size:10px;color:var(--t3)">v${esc(p.version)}</span>` : ''}</div>
       <button class="btn bo bs" onclick="unregister('${escJ(p.path)}')" title="Unlink">✕</button></div>
     ${p.description ? `<div class="card-desc">${esc(p.description)}</div>` : ''}
     <div class="card-path">${esc(p.path)}</div>
     <div class="badges">${bb}</div>
+    ${renderSyncInfo(p)}
     <div class="card-acts">
       ${!p.has_manifest ? `<button class="btn bp bs" onclick="showManifestFormForPath('${escJ(p.path)}')">📝 Create Manifest</button>` : ''}
       <button class="btn bo bs" onclick="runAction('build','${escJ(p.path)}')" ${canBuild ? '' : 'disabled'}>🔨 Build</button>
-      <button class="btn ${p.is_published ? 'bg' : 'bp'} bs" onclick="runAction('publish','${escJ(p.path)}')" ${canPub ? '' : 'disabled'}>${p.is_published ? '🔄 Update' : '🚀 Publish'}</button>
+      ${p.is_published ? `<button class="btn bo bs" onclick="showDiffModal('${escJ(p.path)}','${escJ(p.name || '?')}')">🔍 Diff</button>` : ''}
+      <button class="btn ${pubBtnClass} bs" onclick="runAction('publish','${escJ(p.path)}')" ${canPub ? '' : 'disabled'}>${pubBtnLabel}</button>
       ${p.cloud_url ? `<a href="${esc(p.cloud_url)}" target="_blank" style="font-size:10px;color:var(--ac);text-decoration:none">↗ Cloud</a>` : ''}
     </div>
     <div id="log-${encodeURIComponent(p.path)}" style="display:none"></div></div>`;
@@ -263,11 +331,70 @@ async function runAction(action, path) {
   logMsg(path, `${action === 'build' ? '🔨 Building' : '🚀 Publishing'}...`, 'in');
   try {
     const r = await api()[action](path);
-    if (!r.ok) { logMsg(path, '❌ ' + r.error, 'er'); toast(`${action} failed`, 'er'); return; }
+    if (!r.ok) {
+      // If publish fails due to manifest validation — show edit modal
+      if (action === 'publish' && r.error && r.error.startsWith('Manifest errors')) {
+        logMsg(path, '⚠️ ' + r.error, 'er');
+        showManifestEditModal(path, r.error);
+        return;
+      }
+      logMsg(path, '❌ ' + r.error, 'er'); toast(`${action} failed`, 'er'); return;
+    }
     if (action === 'build') { logMsg(path, `✅ ${r.wheel} (${(r.size/1024).toFixed(1)}KB)`, 'ok'); toast('Built: ' + r.wheel, 'ok'); }
     else { logMsg(path, `✅ ${r.action}: v${r.version}`, 'ok'); toast('Plugin ' + r.action + '!', 'ok'); loadCloud(); }
     loadPlugins();
   } catch (e) { logMsg(path, '❌ ' + e.message, 'er'); toast(`${action} failed`, 'er'); }
+}
+
+async function showManifestEditModal(repoPath, errorMsg) {
+  try {
+    const m = await api().get_manifest(repoPath);
+    if (!m.ok) { toast('Cannot load manifest: ' + m.error, 'er'); return; }
+    // Parse which fields have errors
+    const errFields = (errorMsg || '').toLowerCase();
+    const mark = (f) => errFields.includes(f) ? 'border-color:var(--err)' : '';
+    document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>⚠️ Fix Manifest</h3>
+      <div class="sub" style="color:var(--warn)">${esc(errorMsg)}</div>
+      <input type="hidden" id="me_path" value="${esc(repoPath)}" />
+      <div class="row"><div><label>Name *</label><input id="me_name" value="${esc(m.name)}" style="${mark("'name'")}" /></div>
+        <div><label>Import Name *</label><input id="me_import" value="${esc(m.import_name)}" disabled style="opacity:.6" /></div></div>
+      <div class="row"><div><label>Version *</label><input id="me_version" value="${esc(m.version)}" style="${mark("'version'")}" /></div>
+        <div><label>Author *</label><input id="me_author" value="${esc(m.author)}" style="${mark("'author'")}" /></div></div>
+      <label>Description *</label><textarea id="me_desc" style="${mark("'description'")}">${esc(m.description)}</textarea>
+      <div class="row"><div><label>Homepage</label><input id="me_homepage" value="${esc(m.homepage)}" /></div>
+        <div><label>License</label><input id="me_license" value="${esc(m.license)}" /></div></div>
+      <div class="modal-acts">
+        <button class="btn bo" onclick="closeModal()">Cancel</button>
+        <button class="btn bp" onclick="submitManifestEdit()">💾 Save & Publish</button>
+      </div>
+    </div></div>`;
+  } catch (e) { toast('Edit manifest: ' + e.message, 'er'); }
+}
+
+async function submitManifestEdit() {
+  const path = document.getElementById('me_path').value;
+  const updates = {
+    name: document.getElementById('me_name').value,
+    version: document.getElementById('me_version').value,
+    author: document.getElementById('me_author').value,
+    description: document.getElementById('me_desc').value,
+    homepage: document.getElementById('me_homepage').value,
+    license: document.getElementById('me_license').value,
+  };
+  try {
+    const r = await api().update_manifest(path, updates);
+    if (!r.ok) { toast('Save failed: ' + r.error, 'er'); return; }
+    if (r.errors && r.errors.length) {
+      toast('Still has errors: ' + r.errors.join(', '), 'er');
+      return;
+    }
+    closeModal();
+    toast('Manifest saved — publishing…', 'ok');
+    await loadPlugins();
+    runAction('publish', path);
+  } catch (e) { toast('Save: ' + e.message, 'er'); }
 }
 
 // ===================== Manifest Form =====================
@@ -313,6 +440,137 @@ async function submitManifest() {
   } catch (e) { toast(e.message, 'er'); }
 }
 
+// ===================== Diff Modal =====================
+async function showDiffModal(repoPath, pluginName) {
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:560px">
+      <h3>🔍 Diff: ${esc(pluginName)}</h3>
+      <div class="sub">Loading diff from cloud… <span class="spinner"></span></div>
+    </div>
+  </div>`;
+
+  try {
+    const r = await api().get_plugin_diff(repoPath);
+    if (!r.ok) { closeModal(); toast('Diff error: ' + r.error, 'er'); return; }
+    renderDiffResult(pluginName, r);
+  } catch (e) { closeModal(); toast('Diff: ' + e.message, 'er'); }
+}
+
+// Store diff data for content viewing
+let _lastDiffData = null;
+
+function renderDiffResult(pluginName, r) {
+  _lastDiffData = r;
+  const statusLabels = {
+    up_to_date: '✓ Up to date',
+    version_ahead: '↑ Update ready',
+    metadata_changed: '~ Metadata changed',
+    new: '★ New plugin',
+  };
+  const statusLabel = statusLabels[r.status] || r.status;
+  const rows = (r.diffs || []).map((d, i) => {
+    const cls = d.changed ? 'changed' : 'same';
+    const hasContent = d.local_content || d.cloud_content;
+    const clickCls = hasContent ? ' clickable' : '';
+    const onclick = hasContent ? ` onclick="showDiffContent(${i})"` : '';
+    const detail = d.detail ? ` <span style="font-size:9px;color:var(--t3)">(${esc(d.detail)})</span>` : '';
+    const hint = hasContent ? ' <span style="font-size:8px;color:var(--t3)">— click to view</span>' : '';
+    return `<tr class="${cls}${clickCls}"${onclick}>
+      <td class="f-name">${d.changed ? '⚠ ' : ''}${esc(d.field)}</td>
+      <td class="f-val">${esc(d.cloud || '—')}</td>
+      <td class="f-val">${d.changed ? `<span class="f-arrow">→</span>` : ''}${esc(d.local || '—')}${detail}${hint}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:560px">
+      <h3>🔍 Diff: ${esc(pluginName)}</h3>
+      <div class="sub">Local vs Cloud comparison</div>
+      <div class="diff-status ${r.status}">${statusLabel}</div>
+      <table class="diff-tbl">
+        <thead><tr><th>Field</th><th>Cloud</th><th>Local</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div id="diffContentArea"></div>
+      <div class="modal-acts">
+        <button class="btn bo" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showDiffContent(idx) {
+  if (!_lastDiffData) return;
+  const d = _lastDiffData.diffs[idx];
+  if (!d || (!d.local_content && !d.cloud_content)) return;
+  const area = document.getElementById('diffContentArea');
+  if (area.dataset.activeIdx === String(idx)) {
+    area.innerHTML = ''; area.dataset.activeIdx = '';
+    return;
+  }
+  area.dataset.activeIdx = idx;
+  const oldLines = (d.cloud_content || '').split('\n');
+  const newLines = (d.local_content || '').split('\n');
+  const diff = computeLineDiff(oldLines, newLines);
+  let adds = 0, dels = 0;
+  const html = diff.map(([type, line]) => {
+    if (type === '+') { adds++; return `<div class="udiff-line udiff-add">+${esc(line)}</div>`; }
+    if (type === '-') { dels++; return `<div class="udiff-line udiff-del">-${esc(line)}</div>`; }
+    return `<div class="udiff-line udiff-ctx"> ${esc(line)}</div>`;
+  }).join('');
+  area.innerHTML = `
+    <div style="font-size:11px;font-weight:600;color:var(--t1);margin:10px 0 6px">📄 ${esc(d.field)}</div>
+    <div class="udiff-stats">
+      <span class="add">+${adds} added</span>
+      <span class="del">−${dels} removed</span>
+    </div>
+    <div class="udiff">
+      <div class="udiff-hdr">☁️ cloud → 💻 local</div>
+      ${html}
+    </div>`;
+}
+
+// Simple LCS-based line diff (Myers-like, with context collapsing)
+function computeLineDiff(oldL, newL) {
+  const m = oldL.length, n = newL.length;
+  // Build LCS table
+  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldL[i-1] === newL[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  // Backtrack to get diff ops
+  const ops = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldL[i-1] === newL[j-1]) {
+      ops.push([' ', oldL[i-1]]); i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      ops.push(['+', newL[j-1]]); j--;
+    } else {
+      ops.push(['-', oldL[i-1]]); i--;
+    }
+  }
+  ops.reverse();
+  // Context collapse: show only 2 lines around changes
+  const CTX = 2;
+  const changed = ops.map((o, k) => o[0] !== ' ' ? k : -1).filter(k => k >= 0);
+  if (!changed.length) return ops;
+  const show = new Set();
+  for (const k of changed)
+    for (let c = Math.max(0, k - CTX); c <= Math.min(ops.length - 1, k + CTX); c++) show.add(c);
+  const result = [];
+  let lastShown = -1;
+  for (let k = 0; k < ops.length; k++) {
+    if (!show.has(k)) continue;
+    if (lastShown >= 0 && k - lastShown > 1) result.push([' ', '•••']);
+    result.push(ops[k]);
+    lastShown = k;
+  }
+  return result;
+}
+
 // ===================== Cloud =====================
 async function loadCloud() {
   if (!authState.authenticated) {
@@ -329,6 +587,14 @@ async function loadCloud() {
       <div class="badges"><span class="badge b-pub">☁️ Published</span></div>
       ${p.sharing_token ? `<a href="https://cloud.orcaslicer.com/p/${esc(p.sharing_token)}" target="_blank" style="font-size:10px;color:var(--ac);text-decoration:none">↗ View</a>` : ''}</div>`).join('');
   } catch (e) { toast('Cloud: ' + e.message, 'er'); }
+}
+
+// ===================== Reload =====================
+async function reloadAll() {
+  toast('Refreshing…', 'in');
+  await loadPlugins();
+  await loadCloud();
+  toast('Refreshed', 'ok');
 }
 
 // ===================== Init =====================

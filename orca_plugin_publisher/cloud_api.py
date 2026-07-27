@@ -357,6 +357,30 @@ class OrcaCloudAPI:
 
         return attachment_id
 
+    def download_media_content(self, attachment_id: str) -> bytes:
+        """Download media attachment content by ID.
+
+        Endpoint: GET /api/v1/bundles/media/{attachment_id}/content
+
+        Args:
+            attachment_id: The media attachment UUID.
+
+        Returns:
+            Raw file bytes.
+
+        Raises:
+            OrcaCloudError: On download failure.
+        """
+        url = self._url(f"{self._media_path}/{attachment_id}/content")
+        with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
+            resp = client.get(url, headers=self._headers())
+        if resp.status_code >= 400:
+            raise OrcaCloudError(
+                f"Media download failed: HTTP {resp.status_code}",
+                status_code=resp.status_code,
+            )
+        return resp.content
+
     # ------------------------------------------------------------------
     # Plugin CRUD operations
     # ------------------------------------------------------------------
