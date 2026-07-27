@@ -1,0 +1,66 @@
+# =============================================================================
+# orca-plugin-publisher — project configuration
+# =============================================================================
+#
+# This is the central build/project config for the orca-plugin-publisher tool.
+# It defines dependencies, entry points, and metadata.
+#
+# ARCHITECTURE:
+#   Native desktop app (pywebview + js_api). No HTTP server.
+#   Python backend called directly from JS via window.pywebview.api.
+#   Flow:
+#     1. Link local git repos containing OrcaSlicer plugins
+#     2. Auto-detect metadata from pyproject.toml / plugin_manifest.json
+#     3. Build .whl artifacts via each repo's build_wheel.py
+#     4. Authenticate to Orca Cloud & GitHub via system browser OAuth
+#     5. Publish (create) or update plugins on Orca Cloud via its REST API
+#
+# API DISCOVERY NOTE:
+#   The Orca Cloud REST API was reverse-engineered from the cloud.orcaslicer.com
+#   JS bundle (index-CGdIfVG3.js). Key endpoints:
+#     POST   /api/v1/plugins         — create plugin (FormData: metadata + files)
+#     PATCH  /api/v1/plugins/{id}    — update plugin (FormData or JSON)
+#     DELETE /api/v1/plugins?ids=    — delete plugin
+#     GET    /api/v1/plugins/mine    — list my plugins
+#   Auth: Bearer token via Supabase session (auth.orcaslicer.com)
+#
+# TODO: Add GitHub Actions workflow (.github/workflows/build.yml) for CI
+# TODO: Add orca-plugin-publisher to PyPI for easy installation
+# =============================================================================
+
+[project]
+name = "orca-cloud-connector"
+version = "0.1.0"
+description = "Desktop app to publish and manage OrcaSlicer plugins via GitHub and Orca Cloud"
+authors = [{name = "dnevera"}]
+license = {text = "MIT"}
+requires-python = ">=3.12"
+readme = "README.md"
+
+# ---------------------------------------------------------------------------
+# Dependencies:
+#   httpx          — HTTP client for Orca Cloud & GitHub API calls
+#   python-dotenv  — load .env files for local config overrides
+#   keyring        — OS-level secure credential storage (macOS Keychain, etc.)
+#   pywebview      — native desktop window (cross-platform: macOS/Windows/Linux)
+# ---------------------------------------------------------------------------
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "keyring>=25.0",
+    "pywebview>=5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+
+# Entry points
+[project.scripts]
+orca-plugin-publisher = "orca_plugin_publisher.cli:main"
+
+[project.gui-scripts]
+orca-plugin-publisher-gui = "orca_plugin_publisher.desktop:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
