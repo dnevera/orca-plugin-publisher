@@ -29,7 +29,7 @@
 # =============================================================================
 
 [project]
-name = "orca-cloud-connector"
+name = "orca-plugin-publisher"
 version = "0.1.0"
 description = "Desktop app to publish and manage OrcaSlicer plugins via GitHub and Orca Cloud"
 authors = [{name = "dnevera"}]
