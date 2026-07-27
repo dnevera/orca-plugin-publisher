@@ -717,6 +717,7 @@ class ConnectorAPI:
         local_ver = manifest.version or ""
         diffs.append({
             "field": "Version",
+            "group": "manifest",
             "local": local_ver,
             "cloud": cloud_ver,
             "changed": local_ver != cloud_ver,
@@ -727,6 +728,7 @@ class ConnectorAPI:
         local_types = sorted(manifest.plugin_types or [])
         diffs.append({
             "field": "Types",
+            "group": "manifest",
             "local": ", ".join(local_types) if local_types else "—",
             "cloud": ", ".join(cloud_types) if cloud_types else "—",
             "changed": local_types != cloud_types,
@@ -748,6 +750,7 @@ class ConnectorAPI:
         # Show length comparison for readability
         diff_entry = {
             "field": "Description (README)",
+            "group": "content",
             "local": f"{len(local_readme)} chars" if local_readme else "—",
             "cloud": f"{len(cloud_desc)} chars" if cloud_desc else "—",
             "changed": readme_changed,
@@ -773,6 +776,7 @@ class ConnectorAPI:
         cl_changed = local_changelog != cloud_changelog
         cl_entry = {
             "field": "Changelog",
+            "group": "content",
             "local": f"{len(local_changelog)} chars" if local_changelog else "—",
             "cloud": f"{len(cloud_changelog)} chars" if cloud_changelog else "—",
             "changed": cl_changed,
@@ -833,6 +837,7 @@ class ConnectorAPI:
             img_detail = f"Changed: {', '.join(changed_images)}"
         diffs.append({
             "field": "Images",
+            "group": "content",
             "local": image_path.name if image_path else "—",
             "cloud": "✓" if cloud_has_image else "—",
             "changed": images_changed,
@@ -846,6 +851,7 @@ class ConnectorAPI:
                            if a.get("filename", "").endswith(".whl")]
         diffs.append({
             "field": "Wheel (.whl)",
+            "group": "content",
             "local": whl.name if whl else "—",
             "cloud": cloud_whl_names[0] if cloud_whl_names else "—",
             "changed": (whl.name if whl else "") != (cloud_whl_names[0] if cloud_whl_names else ""),
@@ -857,7 +863,37 @@ class ConnectorAPI:
         elif any(d["changed"] for d in diffs):
             overall_status = "metadata_changed"
 
-        return {"ok": True, "status": overall_status, "diffs": diffs}
+        # Build full manifest diff for clickable "Manifest" section header.
+        # Compare only Cloud-relevant fields (exclude local-only like build_script, dist_dir).
+        cloud_manifest_fields = {
+            "name": cloud.get("name", ""),
+            "version": cloud.get("version", ""),
+            "description": cloud.get("short_description", cloud.get("description", ""))[:120],
+            "author": cloud.get("author", ""),
+            "types": cloud.get("types") or [],
+            "tags": cloud.get("tags") or [],
+            "license": cloud.get("license", ""),
+        }
+        local_manifest_fields = {
+            "name": manifest.name or "",
+            "version": manifest.version or "",
+            "description": manifest.description[:120] if manifest.description else "",
+            "author": manifest.author or "",
+            "types": manifest.plugin_types or [],
+            "tags": manifest.tags or [],
+            "license": manifest.license or "",
+        }
+        manifest_diff_data = None
+        if cloud_manifest_fields != local_manifest_fields:
+            manifest_diff_data = {
+                "cloud_content": json.dumps(cloud_manifest_fields, indent=2, ensure_ascii=False),
+                "local_content": json.dumps(local_manifest_fields, indent=2, ensure_ascii=False),
+            }
+
+        return {
+            "ok": True, "status": overall_status, "diffs": diffs,
+            "manifest_diff": manifest_diff_data,
+        }
 
     # ---- Build ----
 

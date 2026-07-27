@@ -119,6 +119,10 @@
     .diff-tbl tr.clickable{cursor:pointer}
     .diff-tbl tr.clickable:hover{background:rgba(210,153,34,.12)}
     .diff-tbl tr.clickable .f-name::after{content:' ▸';font-size:8px;opacity:.5}
+    .diff-group-hdr td{padding:8px 8px 4px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);border-bottom:1px solid var(--brd)}
+    .diff-group-hdr.clickable{cursor:pointer}
+    .diff-group-hdr.clickable td:hover{color:var(--ac)}
+    .diff-group-hdr.clickable td::after{content:' ▸';font-size:8px;opacity:.5}
     .udiff{background:var(--bg-3);border:1px solid var(--brd);border-radius:var(--rs);padding:0;margin-top:10px;max-height:360px;overflow-y:auto;font-size:10px;font-family:'SF Mono',Consolas,monospace;line-height:1.6}
     .udiff-line{padding:1px 8px;white-space:pre-wrap;word-break:break-word;border-left:3px solid transparent}
     .udiff-add{background:rgba(63,185,80,.08);color:var(--ok);border-left-color:var(--ok)}
@@ -469,14 +473,29 @@ function renderDiffResult(pluginName, r) {
     new: '★ New plugin',
   };
   const statusLabel = statusLabels[r.status] || r.status;
+
+  // Build rows with group section headers
+  let lastGroup = '';
+  const groupLabels = {manifest: '📋 Manifest', content: '📦 Content'};
   const rows = (r.diffs || []).map((d, i) => {
+    let hdr = '';
+    const group = d.group || '';
+    if (group && group !== lastGroup) {
+      lastGroup = group;
+      const isManifest = group === 'manifest';
+      const canClick = isManifest && r.manifest_diff;
+      const hdrCls = canClick ? 'diff-group-hdr clickable' : 'diff-group-hdr';
+      const hdrClick = canClick ? ' onclick="showManifestDiff()"' : '';
+      const hdrHint = canClick ? ' <span style="font-size:8px;opacity:.5">— click to view full diff</span>' : '';
+      hdr = `<tr class="${hdrCls}"${hdrClick}><td colspan="3">${groupLabels[group] || group}${hdrHint}</td></tr>`;
+    }
     const cls = d.changed ? 'changed' : 'same';
     const hasContent = d.local_content || d.cloud_content;
     const clickCls = hasContent ? ' clickable' : '';
     const onclick = hasContent ? ` onclick="showDiffContent(${i})"` : '';
     const detail = d.detail ? ` <span style="font-size:9px;color:var(--t3)">(${esc(d.detail)})</span>` : '';
     const hint = hasContent ? ' <span style="font-size:8px;color:var(--t3)">— click to view</span>' : '';
-    return `<tr class="${cls}${clickCls}"${onclick}>
+    return hdr + `<tr class="${cls}${clickCls}"${onclick}>
       <td class="f-name">${d.changed ? '⚠ ' : ''}${esc(d.field)}</td>
       <td class="f-val">${esc(d.cloud || '—')}</td>
       <td class="f-val">${d.changed ? `<span class="f-arrow">→</span>` : ''}${esc(d.local || '—')}${detail}${hint}</td>
@@ -499,6 +518,36 @@ function renderDiffResult(pluginName, r) {
       </div>
     </div>
   </div>`;
+}
+
+function showManifestDiff() {
+  if (!_lastDiffData || !_lastDiffData.manifest_diff) return;
+  const md = _lastDiffData.manifest_diff;
+  const area = document.getElementById('diffContentArea');
+  if (area.dataset.activeIdx === 'manifest') {
+    area.innerHTML = ''; area.dataset.activeIdx = '';
+    return;
+  }
+  area.dataset.activeIdx = 'manifest';
+  const oldLines = (md.cloud_content || '').split('\n');
+  const newLines = (md.local_content || '').split('\n');
+  const diff = computeLineDiff(oldLines, newLines);
+  let adds = 0, dels = 0;
+  const html = diff.map(([type, line]) => {
+    if (type === '+') { adds++; return `<div class="udiff-line udiff-add">+${esc(line)}</div>`; }
+    if (type === '-') { dels++; return `<div class="udiff-line udiff-del">-${esc(line)}</div>`; }
+    return `<div class="udiff-line udiff-ctx"> ${esc(line)}</div>`;
+  }).join('');
+  area.innerHTML = `
+    <div style="font-size:11px;font-weight:600;color:var(--t1);margin:10px 0 6px">📋 Manifest (cloud-relevant fields)</div>
+    <div class="udiff-stats">
+      <span class="add">+${adds} added</span>
+      <span class="del">−${dels} removed</span>
+    </div>
+    <div class="udiff">
+      <div class="udiff-hdr">☁️ cloud → 💻 local</div>
+      ${html}
+    </div>`;
 }
 
 function showDiffContent(idx) {
