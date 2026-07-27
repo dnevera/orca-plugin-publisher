@@ -459,9 +459,9 @@ def _parse_manifest(data: dict[str, Any]) -> PluginManifest:
         tags=data.get("tags", []),
         compatible_orcaslicer_version=data.get("compatible_orcaslicer_version"),
         cloud=cloud,
-        # Assets are nested in JSON, flattened in Python
-        screenshot=data.get("assets", {}).get("screenshot"),
-        icon=data.get("assets", {}).get("icon"),
+        # Assets: support flat "screenshot"/"icon" or nested "assets.screenshot"/"assets.icon"
+        screenshot=data.get("screenshot") or data.get("assets", {}).get("screenshot"),
+        icon=data.get("icon") or data.get("assets", {}).get("icon"),
         readme=data.get("readme", "README.md"),
         changelog=changelog_entries,
         build_script=data.get("build_script", "build_wheel.py"),
@@ -504,14 +504,11 @@ def _serialize_manifest(manifest: PluginManifest) -> dict[str, Any]:
         "visibility": manifest.cloud.visibility,
     }
 
-    # Assets — only include if at least one asset path is set
-    assets: dict[str, str] = {}
+    # Screenshot/icon — flat fields (simpler for manual editing)
     if manifest.screenshot:
-        assets["screenshot"] = manifest.screenshot
+        data["screenshot"] = manifest.screenshot
     if manifest.icon:
-        assets["icon"] = manifest.icon
-    if assets:
-        data["assets"] = assets
+        data["icon"] = manifest.icon
 
     data["readme"] = manifest.readme
     data["build_script"] = manifest.build_script
